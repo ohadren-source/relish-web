@@ -9,6 +9,11 @@ const BACKEND_URL = 'https://sauc-e-backend-production.up.railway.app'
 
 const FREE_WISDOM_LIMIT = 9
 
+// Payment & external links
+const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/28E00l3HOg638gA6hxa3u00'
+const SAUCE_HOME = 'https://sauc-e.com'
+const CHECKOUT_URL = 'https://sauc-e.com/checkitout'
+
 type Context = 'Life' | 'Career' | 'Relationships' | 'Health' | 'Money'
 
 const CONTEXTS: Context[] = ['Life', 'Career', 'Relationships', 'Health', 'Money']
@@ -25,6 +30,8 @@ function App() {
   const [wisdom, setWisdom] = useState('')
   const [loading, setLoading] = useState(false)
   const [customerId] = useState<string | null>(null)
+
+  const freeLeft = Math.max(0, FREE_WISDOM_LIMIT - wisdomCount)
 
   // ============================================================================
   // INITIALIZATION
@@ -61,6 +68,12 @@ function App() {
       return
     }
 
+    // If free limit reached, redirect to payment
+    if (!isSubscribed && wisdomCount >= FREE_WISDOM_LIMIT) {
+      window.open(STRIPE_PAYMENT_LINK, '_blank')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -80,7 +93,7 @@ function App() {
         const errorData = await response.json()
 
         if (response.status === 403) {
-          alert('Limit Reached — Upgrade to Premium for unlimited wisdom')
+          window.open(STRIPE_PAYMENT_LINK, '_blank')
           return
         }
 
@@ -105,33 +118,58 @@ function App() {
 
   return (
     <div className="relish-container">
-      <header className="relish-header">
+
+      {/* ===== HEADER - sauc-e.com branding ===== */}
+      <header className="sauce-header">
+        <a href={SAUCE_HOME} target="_blank" rel="noopener noreferrer" className="sauce-logo-link">
+          <span className="sauce-name">sauc-e</span>
+          <span className="sauce-tagline"> where HOME is the </span>
+          <span className="sauce-heart">❤️</span>
+        </a>
+        <nav className="sauce-nav">
+          <a href={CHECKOUT_URL} target="_blank" rel="noopener noreferrer" className="sauce-nav-link">Check It Out Y'all</a>
+          <a href={`${SAUCE_HOME}/about`} target="_blank" rel="noopener noreferrer" className="sauce-nav-link">About</a>
+          <a href={`${SAUCE_HOME}/contact`} target="_blank" rel="noopener noreferrer" className="sauce-nav-link">Contact</a>
+        </nav>
+      </header>
+
+      {/* ===== RELISH LOGO + TITLE ===== */}
+      <div className="relish-header">
+        <img src="/icon.png" alt="RELISH" className="relish-logo-image" />
         <h1 className="relish-title">RELISH</h1>
         <p className="relish-subtitle">Wisdom &amp; Clarity</p>
         <p className="relish-philosophy">Understanding = Quality / Quantity</p>
-      </header>
+      </div>
 
-      {!isSubscribed && wisdomCount > 0 && (
-        <div className="relish-usage">
-          <span className="relish-usage-text">
-            {Math.max(0, FREE_WISDOM_LIMIT - wisdomCount)} free remaining
-          </span>
+      {/* ===== PREMIUM COUNTER ===== */}
+      {!isSubscribed && (
+        <div className="premium-section">
+          <a
+            href={STRIPE_PAYMENT_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`premium-pill${freeLeft === 0 ? ' urgent' : ''}`}
+          >
+            {freeLeft > 0
+              ? `Premium · ${freeLeft} free left`
+              : 'Upgrade to Premium · $9.99/mo'}
+          </a>
         </div>
       )}
 
+      {/* ===== APP FUNCTIONALITY ===== */}
       <main className="relish-content">
         <h2 className="relish-section-title">Pick a Context</h2>
-        <div className="relish-contexts">
-          {CONTEXTS.map((c) => (
-            <button
-              key={c}
-              className={`relish-context-btn${context === c ? ' active' : ''}`}
-              onClick={() => setContext(c)}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
+
+        {CONTEXTS.map((c) => (
+          <button
+            key={c}
+            className={`relish-context-btn${context === c ? ' active' : ''}`}
+            onClick={() => setContext(c)}
+          >
+            {c}
+          </button>
+        ))}
 
         <h2 className="relish-section-title">Your Situation</h2>
         <textarea
@@ -156,15 +194,53 @@ function App() {
             <p className="relish-wisdom-text">{wisdom}</p>
           </div>
         )}
-
-        <footer className="relish-footer">
-          <p className="relish-footer-main">Runs on RELISH Sauce 🔥 🥗</p>
-          <p className="relish-footer-small">RELISH is for Feelings</p>
-          <p className="relish-footer-small">
-            Sample: CATSUP (Learning) · BBQE (Safety)
-          </p>
-        </footer>
       </main>
+
+      {/* ===== US vs THEM ===== */}
+      <div className="marketing-section">
+        <img src="/relish_uvt.png" alt="RELISH Us vs Them" className="uvt-image" />
+      </div>
+
+      {/* ===== PEAK FLAVOUR ===== */}
+      <div className="marketing-section">
+        <img src="/relish_peak_pacakage.png" alt="Peak Flavour Premium 3,6,9" className="peak-image" />
+      </div>
+
+      {/* ===== SUBSCRIBE CTA ===== */}
+      {!isSubscribed && (
+        <div className="cta-section">
+          <h2 className="cta-title">Peak Flavour Premium</h2>
+          <p className="cta-subtitle">Unlimited wisdom. $9.99/month.</p>
+          <p className="cta-hotdog">$9.99 &lt; 3 hot dogs + tax</p>
+          <a
+            href={STRIPE_PAYMENT_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="cta-button"
+          >
+            Subscribe at sauc-e.com
+          </a>
+        </div>
+      )}
+
+      {/* ===== LEGAL ===== */}
+      <div className="legal-section">
+        <a href={`${SAUCE_HOME}/terms`} target="_blank" rel="noopener noreferrer" className="legal-link">Terms of Service</a>
+        <span className="legal-separator">  ·  </span>
+        <a href="https://docs.google.com/document/d/1AxzEmZn2AjEY7ry6HSM1S6mlB3ggs0SN" target="_blank" rel="noopener noreferrer" className="legal-link">Privacy Policy</a>
+        <span className="legal-separator">  ·  </span>
+        <a href={`${SAUCE_HOME}/support`} target="_blank" rel="noopener noreferrer" className="legal-link">Support</a>
+      </div>
+
+      {/* ===== FOOTER ===== */}
+      <footer className="relish-footer">
+        <a href={SAUCE_HOME} target="_blank" rel="noopener noreferrer" className="footer-brand">sauc-e.com</a>
+        <p className="footer-tagline">HOME of all of our delicious APPS</p>
+        <p className="footer-small">RELISH is for Feelings</p>
+        <p className="footer-small">CATSUP (Learning) · BBQE (Safety)</p>
+        <p className="footer-tiny">© 2026 3_6_NIFE.pi · 36Nife@gmail.com</p>
+      </footer>
+
     </div>
   )
 }
