@@ -1,81 +1,172 @@
-import { useState } from 'react';
-import './App.css';
+import { useState, useEffect } from 'react'
+import './App.css'
 
-export default function App() {
-  const [wisdomCount, setWisdomCount] = useState(9);
-  const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
-  const [loading, setLoading] = useState(false);
+// ============================================================================
+// BACKEND URL (Only this - no API keys in app!)
+// ============================================================================
 
-  const STRIPE_URL = 'https://buy.stripe.com/28E00l3HOg638gA6hxa3u00';
-  const BACKEND_URL = 'https://sauc-e-backend-production.up.railway.app';
+const BACKEND_URL = 'https://sauc-e-backend-production.up.railway.app'
 
-  const handleAsk = async () => {
-    if (!question.trim()) return;
-    if (wisdomCount <= 0) {
-      window.location.href = STRIPE_URL;
-      return;
-    }
+const FREE_WISDOM_LIMIT = 9
 
-    setLoading(true);
-    setAnswer('');
+type Context = 'Life' | 'Career' | 'Relationships' | 'Health' | 'Money'
 
+const CONTEXTS: Context[] = ['Life', 'Career', 'Relationships', 'Health', 'Money']
+
+function App() {
+  // ============================================================================
+  // STATE
+  // ============================================================================
+
+  const [isSubscribed] = useState(false)
+  const [wisdomCount, setWisdomCount] = useState(0)
+  const [situation, setSituation] = useState('')
+  const [context, setContext] = useState<Context>('Life')
+  const [wisdom, setWisdom] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [customerId] = useState<string | null>(null)
+
+  // ============================================================================
+  // INITIALIZATION
+  // ============================================================================
+
+  useEffect(() => {
+    syncUsageCount('web-user')
+  }, [])
+
+  async function syncUsageCount(cid: string) {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/relish/ask`, {
+      const response = await fetch(`${BACKEND_URL}/api/relish/usage-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, user: 'web-user' }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setAnswer(data.answer);
-        setWisdomCount((prev) => Math.max(0, prev - 1));
-      } else {
-        setAnswer('Error. Try again.');
+        body: JSON.stringify({ customerId: cid || 'anonymous' }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setWisdomCount(data.usageCount || 0)
       }
-    } catch (error) {
-      setAnswer('Connection error.');
-    } finally {
-      setLoading(false);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'unknown'
+      console.log('Usage sync skipped:', msg)
     }
-  };
+  }
+
+  // ============================================================================
+  // GET WISDOM (Calls backend, NOT Claude directly)
+  // ============================================================================
+
+  async function handleGetWisdom() {
+    if (!situation.trim()) {
+      alert('Please describe your situation')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/relish/get-wisdom`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: customerId || 'anonymous',
+          situation: situation,
+          context: context,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+
+        if (response.status === 403) {
+          alert('Limit Reached — Upgrade to Premium for unlimited wisdom')
+          return
+        }
+
+        throw new Error(errorData.error || 'Failed to get wisdom')
+      }
+
+      const data = await response.json()
+      setWisdom(data.wisdom)
+      setWisdomCount((prev) => prev + 1)
+      setSituation('')
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to process request'
+      alert(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-white px-4">
-      <div className="mb-8">
-        <img src="/icon.jpg" alt="RELISH" width={120} height={120} />
-      </div>
+    <div className="relish-container">
+      <header className="relish-header">
+        <h1 className="relish-title">RELISH</h1>
+        <p className="relish-subtitle">Wisdom &amp; Clarity</p>
+        <p className="relish-philosophy">Understanding = Quality / Quantity</p>
+      </header>
 
-      <h1 className="text-4xl font-bold text-black mb-2">RELISH</h1>
-      <p className="text-lg text-gray-600 mb-8">(3,6,9)</p>
-
-      <div className="mb-6 bg-teal-100 border-2 border-teal-500 rounded-lg px-4 py-2">
-        <p className="text-teal-800 font-semibold">{wisdomCount} free left</p>
-      </div>
-
-      <textarea
-        value={question}
-        onChange={(e) => setQuestion(e.target.value)}
-        placeholder="Ask your question..."
-        className="w-full max-w-md h-24 p-4 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-teal-500 mb-4"
-      />
-
-      <button onClick={handleAsk} disabled={loading} className="bg-teal-500 hover:bg-teal-600 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-lg mb-6 transition">
-        {loading ? 'Thinking...' : 'Ask'}
-      </button>
-
-      {answer && (
-        <div className="w-full max-w-md bg-gray-100 border-l-4 border-teal-500 p-4 rounded-lg">
-          <p className="text-gray-800">{answer}</p>
+      {!isSubscribed && wisdomCount > 0 && (
+        <div className="relish-usage">
+          <span className="relish-usage-text">
+            {Math.max(0, FREE_WISDOM_LIMIT - wisdomCount)} free remaining
+          </span>
         </div>
       )}
 
-      {wisdomCount === 0 && (
-        <a href={STRIPE_URL} target="_blank" rel="noopener noreferrer" className="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg transition">
-          Get More Wisdom
-        </a>
-      )}
+      <main className="relish-content">
+        <h2 className="relish-section-title">Pick a Context</h2>
+        <div className="relish-contexts">
+          {CONTEXTS.map((c) => (
+            <button
+              key={c}
+              className={`relish-context-btn${context === c ? ' active' : ''}`}
+              onClick={() => setContext(c)}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+
+        <h2 className="relish-section-title">Your Situation</h2>
+        <textarea
+          className="relish-input"
+          placeholder="Describe what's on your mind..."
+          value={situation}
+          onChange={(e) => setSituation(e.target.value)}
+          rows={4}
+        />
+
+        <button
+          className={`relish-wisdom-btn${loading ? ' disabled' : ''}`}
+          onClick={handleGetWisdom}
+          disabled={loading}
+        >
+          {loading ? 'Seeking wisdom...' : 'Get Wisdom'}
+        </button>
+
+        {wisdom && (
+          <div className="relish-wisdom-box">
+            <h3 className="relish-wisdom-title">Wisdom</h3>
+            <p className="relish-wisdom-text">{wisdom}</p>
+          </div>
+        )}
+
+        <footer className="relish-footer">
+          <p className="relish-footer-main">Runs on RELISH Sauce 🔥 🥗</p>
+          <p className="relish-footer-small">RELISH is for Feelings</p>
+          <p className="relish-footer-small">
+            Sample: CATSUP (Learning) · BBQE (Safety)
+          </p>
+        </footer>
+      </main>
     </div>
-  );
+  )
 }
+
+export default App
