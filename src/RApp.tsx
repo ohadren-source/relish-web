@@ -23,13 +23,7 @@ function App() {
   // STATE
   // ============================================================================
 
-  const [isSubscribed] = useState(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('subscribed') === 'true') {
-      localStorage.setItem('sauce_premium', 'true')
-    }
-    return localStorage.getItem('sauce_premium') === 'true'
-  })
+  const [isSubscribed] = useState(false)
   const [wisdomCount, setWisdomCount] = useState(0)
   const [situation, setSituation] = useState('')
   const [context, setContext] = useState<Context>('Life')
