@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Image, Linking } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Image, Linking, ActivityIndicator } from 'react-native';
 
 // ============================================================================
 // BACKEND URL (Only this - no API keys in app!)
@@ -127,11 +127,11 @@ const RELISH = () => {
       {/* ===== HEADER - sauc-e.com branding ===== */}
       <View style={styles.sauceHeader}>
         <TouchableOpacity onPress={() => window.open(SAUCE_HOME, '_blank')}>
-          <Text style={styles.sauceLogoText}>
+          <View style={styles.sauceLogoText}>
             <Text style={styles.sauceName}>sauc-e</Text>
             <Text style={styles.sauceTagline}> where HOME is the </Text>
             <Text style={styles.sauceHeart}>❤️</Text>
-          </Text>
+          </View>
         </TouchableOpacity>
         <View style={styles.sauceNav}>
           <TouchableOpacity onPress={() => window.open(CHECKOUT_URL, '_blank')}>
@@ -199,9 +199,7 @@ const RELISH = () => {
           onPress={handleGetWisdom}
           disabled={loading}
         >
-          <Text style={styles.wisdomButtonText}>
-            {loading ? 'Seeking wisdom...' : 'Get Wisdom'}
-          </Text>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.wisdomButtonText}>Get Wisdom</Text>}
         </TouchableOpacity>
 
         {wisdom && (
