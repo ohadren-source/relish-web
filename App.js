@@ -30,6 +30,7 @@ const RELISH = () => {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [wisdomCount, setWisdomCount] = useState(0);
   const [situation, setSituation] = useState('');
+  const [askedSituation, setAskedSituation] = useState(''); // THE MIRROR STATE
   const [context, setContext] = useState('Life');
   const [wisdom, setWisdom] = useState('');
   const [loading, setLoading] = useState(false);
@@ -104,6 +105,7 @@ const RELISH = () => {
       }
 
       const data = await response.json();
+      setAskedSituation(situation); // CAPTURE THE MIRROR
       setWisdom(data.wisdom);
       setWisdomCount(wisdomCount + 1);
       setSituation('');
@@ -204,6 +206,9 @@ const RELISH = () => {
 
         {wisdom && (
           <View style={styles.wisdomBox}>
+            <Text style={styles.wisdomTitle}>YOU ASKED:</Text>
+            <Text style={styles.askedSituationText}>"{askedSituation}"</Text>
+            <View style={styles.wisdomSeparator} />
             <Text style={styles.wisdomTitle}>Wisdom</Text>
             <Text style={styles.wisdomText}>{wisdom}</Text>
           </View>
@@ -433,6 +438,16 @@ const styles = StyleSheet.create({
     color: '#4ECDC4',
     fontWeight: '700',
     marginBottom: 8,
+  },
+  askedSituationText: {
+    color: '#999',
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  wisdomSeparator: {
+    height: 1,
+    backgroundColor: '#444',
+    marginVertical: 12,
   },
   wisdomText: {
     color: '#ccc',
