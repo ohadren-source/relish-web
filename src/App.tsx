@@ -2,174 +2,279 @@ import { useState, useEffect } from 'react'
 import './App.css'
 
 // ============================================================================
-// BACKEND URL
+// BACKEND URL (Only this - no API keys in app!)
 // ============================================================================
-const BACKEND_URL = 'https://sauc-e-backend-production.up.railway.app'
-const FREE_WISDOM_LIMIT = 9
 
-// External links
+const BACKEND_URL = 'https://sauc-e-backend-production.up.railway.app'
+
+const FREE_LESSON_LIMIT = 9
+
+// Payment & external links
 const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/28E00l3HOg638gA6hxa3u00'
 const SAUCE_HOME = 'https://sauc-e.com'
+const CHECKOUT_URL = 'https://sauc-e.com/checkitout'
+const PRIVACY_POLICY_URL = 'https://docs.google.com/document/d/1AxzEmZn2AjEY7ry6HSM1S6mlB3ggs0SN'
 
 type Context = 'Life' | 'Career' | 'Relationships' | 'Health' | 'Money'
+
 const CONTEXTS: Context[] = ['Life', 'Career', 'Relationships', 'Health', 'Money']
 
 function App() {
   // ============================================================================
   // STATE
   // ============================================================================
-  const [isSubscribed] = useState(false)
-  const [wisdomCount, setWisdomCount] = useState(0)
-  const [situation, setSituation] = useState('')
-  const [askedSituation, setAskedSituation] = useState('') // THE MIRROR
+
+  const [isSubscribed] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('subscribed') === 'true') {
+      localStorage.setItem('sauce_premium', 'true')
+    }
+    return localStorage.getItem('sauce_premium') === 'true'
+  })
+  const [lessonCount, setLessonCount] = useState(0)
+  const [question, setQuestion] = useState('')
   const [context, setContext] = useState<Context>('Life')
-  const [wisdom, setWisdom] = useState('')
+  const [lesson, setLesson] = useState('')
+  const [askedQuestion, setAskedQuestion] = useState('')
   const [loading, setLoading] = useState(false)
   const [customerId] = useState<string | null>(null)
 
-  const freeLeft = Math.max(0, FREE_WISDOM_LIMIT - wisdomCount)
+  const freeLeft = Math.max(0, FREE_LESSON_LIMIT - lessonCount)
 
   // ============================================================================
   // INITIALIZATION
   // ============================================================================
+
   useEffect(() => {
-    const saved = localStorage.getItem('sauc_e_relish_hits')
-    if (saved) {
-      setWisdomCount(parseInt(saved, 10))
-    }
+    syncUsageCount('web-user')
   }, [])
 
-  useEffect(() => {
-    localStorage.setItem('sauc_e_relish_hits', wisdomCount.toString())
-  }, [wisdomCount])
+  async function syncUsageCount(cid: string) {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/relish/usage-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: cid || 'anonymous' }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setLessonCount(data.usageCount || 0)
+      }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'unknown'
+      console.log('Usage sync skipped:', msg)
+    }
+  }
 
   // ============================================================================
-  // ACTIONS
+  // GET WISDOM — QUESTION STREAMS FIRST
   // ============================================================================
-  const handleGetWisdom = async () => {
-    if (!situation.trim()) return
-    if (!isSubscribed && wisdomCount >= FREE_WISDOM_LIMIT) {
-      alert('You have used all your free wisdom for now. Please subscribe to continue.')
+
+  async function handleAsk() {
+    if (!question.trim()) {
+      alert('Please tell me the situation')
+      return
+    }
+
+    if (!isSubscribed && lessonCount >= FREE_LESSON_LIMIT) {
+      window.open(STRIPE_PAYMENT_LINK, '_blank')
       return
     }
 
     setLoading(true)
-    setWisdom('')
+    const submittedQuestion = question.trim()
+
+    // QUESTION APPEARS IMMEDIATELY — BEFORE WISDOM LOADS
+    setAskedQuestion(submittedQuestion)
+    setLesson('')
 
     try {
-      const response = await fetch(`${BACKEND_URL}/relish`, {
+      const response = await fetch(`${BACKEND_URL}/api/relish/get-lesson`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          situation,
-          context,
-          customerId,
+          customerId: customerId || 'anonymous',
+          situation: submittedQuestion,
+          context: context,
         }),
       })
 
-      if (!response.ok) throw new Error('Failed to fetch')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        if (response.status === 403) {
+          window.open(STRIPE_PAYMENT_LINK, '_blank')
+          return
+        }
+        throw new Error(errorData.error || 'Failed to get wisdom')
+      }
 
       const data = await response.json()
-      setWisdom(data.wisdom)
-      setAskedSituation(situation) // CAPTURE THE MIRROR
-      setWisdomCount((prev) => prev + 1)
-      setSituation('') // CLEAR THE INPUT
-    } catch (err) {
-      console.error(err)
-      setWisdom("The chef is having a bit of trouble... please try again.")
+      setLesson(data.wisdom || data.lesson)
+      setLessonCount((prev) => prev + 1)
+      setQuestion('')
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to process request'
+      alert(msg)
+      setAskedQuestion('')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleGetWisdom()
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      handleAsk()
     }
   }
 
   // ============================================================================
-  // RENDER
+  // RENDER — Straight to main app (no Landing for now)
   // ============================================================================
+
   return (
-    <div className="relish-app-container">
-      <header className="relish-header">
-        <div className="relish-logo-container">
-          <img src="/logo.png" alt="Relish Logo" className="relish-logo" />
-        </div>
-        <h1 className="relish-title">RELISH</h1>
-        <p className="relish-subtitle">For your feelings... what's the sitch?</p>
+    <div className="relish-page">
+
+      {/* sauc-e HEADER */}
+      <header className="sauce-header">
+        <a href={SAUCE_HOME} target="_blank" rel="noopener noreferrer" className="sauce-logo-link">
+          <span className="sauce-name">sauc-e</span>
+          <span className="sauce-tagline"> where HOME is the </span>
+          <span className="sauce-heart">❤️</span>
+        </a>
+        <nav className="sauce-nav">
+          <a href={CHECKOUT_URL} target="_blank" rel="noopener noreferrer" className="sauce-nav-link">Check It Out Y'all</a>
+          <a href={`${SAUCE_HOME}/about`} target="_blank" rel="noopener noreferrer" className="sauce-nav-link">About</a>
+          <a href={`${SAUCE_HOME}/contact`} target="_blank" rel="noopener noreferrer" className="sauce-nav-link">Contact</a>
+        </nav>
       </header>
 
-      <main className="relish-main">
-        <div className="relish-input-card">
-          <label className="relish-label">SELECT CONTEXT:</label>
-          <div className="relish-context-buttons">
+      <div className="relish-container">
+
+        <header className="relish-header">
+          <h1 className="relish-title">RELISH</h1>
+          <p className="relish-subtitle">Feel Through Questions</p>
+          <p className="relish-philosophy">Understanding = Questions / Ego</p>
+        </header>
+
+        {!isSubscribed && (
+          <div className="premium-section">
+            <a
+              href={STRIPE_PAYMENT_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`premium-pill${freeLeft === 0 ? ' premium-pill-urgent' : ''}`}
+            >
+              {freeLeft > 0 ? `Premium · ${freeLeft} free left` : 'Upgrade to Premium · $9.99/mo'}
+            </a>
+          </div>
+        )}
+
+        <main className="relish-content">
+
+          <h2 className="relish-section-title">Pick a Feeling Area</h2>
+          <div className="relish-contexts">
             {CONTEXTS.map((c) => (
               <button
                 key={c}
+                className={`relish-context-pill${context === c ? ' active' : ''}`}
                 onClick={() => setContext(c)}
-                className={`relish-context-btn ${context === c ? 'active' : ''}`}
               >
                 {c}
               </button>
             ))}
           </div>
 
-          <label className="relish-label">TELL ME EVERYTHING:</label>
+          <h2 className="relish-section-title">Your Situation</h2>
           <textarea
-            className="relish-textarea"
-            placeholder="Type your situation here..."
-            value={situation}
-            onChange={(e) => setSituation(e.target.value)}
-            onKeyDown={handleKeyPress}
+            className="relish-input"
+            placeholder="Tell me the situation..."
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={4}
           />
 
           <button
-            className="relish-submit-btn"
-            onClick={handleGetWisdom}
+            className={`relish-ask-btn${loading ? ' disabled' : ''}`}
+            onClick={handleAsk}
             disabled={loading}
           >
-            {loading ? 'GETTING SAUCY...' : 'GET WISDOM'}
+            {loading ? 'Getting Wisdom...' : 'Get Wisdom'}
           </button>
 
-          {!isSubscribed && (
-            <p className="relish-counter">
-              Free wisdom remaining: <strong>{freeLeft}</strong>
-            </p>
+          {/* QUESTION STREAMS FIRST */}
+          {askedQuestion && (
+            <div className="relish-lesson-box">
+              <p className="relish-you-asked">You asked:</p>
+              <p className="relish-asked-question">"{askedQuestion}"</p>
+              <hr className="relish-divider" />
+
+              {lesson ? (
+                <p className="relish-lesson-text">{lesson}</p>
+              ) : (
+                <p className="relish-lesson-text loading-text">
+                  The chef is cooking your relish… stay with the feeling.
+                </p>
+              )}
+
+              <div className="relish-card-footer">
+                <p className="relish-card-footer-line">
+                  Feelings = Questions / ego.&nbsp;&nbsp;ego = salt.&nbsp;&nbsp;Necessary for flavor.
+                </p>
+                <p className="relish-card-footer-line">
+                  Too much ego?&nbsp;&nbsp;Too salty! :p&nbsp;&nbsp;Stay Curious. Don't worry, the cat is safe :)
+                </p>
+                <div className="relish-card-footer-links">
+                  <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" className="relish-card-footer-link">
+                    Privacy Policy
+                  </a>
+                  <span className="relish-card-footer-sep">·</span>
+                  <a href={`${SAUCE_HOME}/terms`} target="_blank" rel="noopener noreferrer" className="relish-card-footer-link">
+                    Terms of Use
+                  </a>
+                </div>
+                <p className="relish-card-footer-line relish-card-footer-brought">Brought to you by sauc-e</p>
+                <p className="relish-card-footer-line relish-card-footer-prepared">Prepared by Rilie Ravena Rivers</p>
+              </div>
+            </div>
           )}
+
+        </main>
+
+        {/* Marketing + CTA + Legal + Footer */}
+        <section className="relish-marketing">
+          <img src="/catsup_uvt.png" alt="RELISH" className="relish-marketing-img" />
+          <img src="/catsup_peak.png" alt="RELISH" className="relish-marketing-img" />
+        </section>
+
+        {!isSubscribed && (
+          <section className="relish-cta-section">
+            <h2 className="relish-cta-title">Feelings That Actually Get Heard</h2>
+            <p className="relish-cta-subtitle">Unlimited situations. $9.99/month.</p>
+            <p className="relish-cta-tagline">They give answers. We help you feel and grow.</p>
+            <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" className="relish-cta-btn">
+              Subscribe at sauc-e.com
+            </a>
+          </section>
+        )}
+
+        <div className="relish-legal">
+          <a href={`${SAUCE_HOME}/terms`} target="_blank" rel="noopener noreferrer" className="relish-legal-link">Terms of Service</a>
+          <span className="relish-legal-sep"> · </span>
+          <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" className="relish-legal-link">Privacy Policy</a>
+          <span className="relish-legal-sep"> · </span>
+          <a href={`${SAUCE_HOME}/support`} target="_blank" rel="noopener noreferrer" className="relish-legal-link">Support</a>
         </div>
 
-        {/* THE MIRROR BOX */}
-        {wisdom && (
-          <div className="relish-wisdom-box animate-pop-in">
-            <p className="relish-you-asked">YOU ASKED:</p>
-            <p className="relish-asked-question">"{askedSituation}"</p>
-            <hr className="relish-divider" />
-            <div className="relish-wisdom-content">
-              <p className="relish-wisdom-text">{wisdom}</p>
-            </div>
-            <p className="relish-footer-note">Too much ego? Too salty! :p Stay Curious.</p>
-          </div>
-        )}
-      </main>
+        <footer className="relish-footer">
+          <a href={SAUCE_HOME} target="_blank" rel="noopener noreferrer" className="relish-footer-brand">sauc-e.com</a>
+          <p className="relish-footer-tagline">HOME of all of our delicious APPS</p>
+          <p className="relish-footer-small">RELISH is for Feelings</p>
+          <p className="relish-footer-small">CATSUP (Learning) · BBQE (Safety)</p>
+          <p className="relish-footer-tiny">© 2026 3_6_NIFE.pi · 36Nife@gmail.com</p>
+        </footer>
 
-      <div className="legal-section">
-        <a href={`${SAUCE_HOME}/terms`} target="_blank" rel="noopener noreferrer" className="legal-link">Terms of Service</a>
-        <span className="legal-separator">  ·  </span>
-        <a href="https://docs.google.com/document/d/1AxzEmZn2AjEY7ry6HSM1S6mlB3ggs0SN" target="_blank" rel="noopener noreferrer" className="legal-link">Privacy Policy</a>
-        <span className="legal-separator">  ·  </span>
-        <a href={`${SAUCE_HOME}/support`} target="_blank" rel="noopener noreferrer" className="legal-link">Support</a>
       </div>
-
-      <footer className="relish-footer">
-        <a href={SAUCE_HOME} target="_blank" rel="noopener noreferrer" className="footer-brand">sauc-e.com</a>
-        <p className="footer-tagline">HOME of all of our delicious APPS</p>
-        <p className="footer-small">RELISH is for Feelings</p>
-        <p className="footer-small">CATSUP (Learning) · BBQE (Safety)</p>
-        <p className="footer-tiny">© 2026 3_6_NIFE.pi · 36Nife@gmail.com</p>
-      </footer>
     </div>
   )
 }
