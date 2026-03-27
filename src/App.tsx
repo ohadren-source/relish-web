@@ -23,15 +23,10 @@ function App() {
   // STATE
   // ============================================================================
 
-  const [isSubscribed] = useState(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('subscribed') === 'true') {
-      localStorage.setItem('sauce_premium', 'true')
-    }
-    return localStorage.getItem('sauce_premium') === 'true'
-  })
+  const [isSubscribed] = useState(false)
   const [wisdomCount, setWisdomCount] = useState(0)
   const [situation, setSituation] = useState('')
+  const [askedSituation, setAskedSituation] = useState('') // THE MIRROR STATE
   const [context, setContext] = useState<Context>('Life')
   const [wisdom, setWisdom] = useState('')
   const [loading, setLoading] = useState(false)
@@ -44,77 +39,63 @@ function App() {
   // ============================================================================
 
   useEffect(() => {
-    syncUsageCount('web-user')
+    // Basic hit count logic
+    const saved = localStorage.getItem('sauc_e_relish_hits')
+    if (saved) {
+      setWisdomCount(parseInt(saved, 10))
+    }
   }, [])
 
-  async function syncUsageCount(cid: string) {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/relish/usage-status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId: cid || 'anonymous' }),
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setWisdomCount(data.usageCount || 0)
-      }
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'unknown'
-      console.log('Usage sync skipped:', msg)
-    }
-  }
+  useEffect(() => {
+    localStorage.setItem('sauc_e_relish_hits', wisdomCount.toString())
+  }, [wisdomCount])
 
   // ============================================================================
-  // GET WISDOM (Calls backend, NOT Claude directly)
+  // ACTIONS
   // ============================================================================
 
-  async function handleGetWisdom() {
-    if (!situation.trim()) {
-      alert('Please describe your situation')
-      return
-    }
-
-    // If free limit reached, redirect to payment
+  const handleGetWisdom = async () => {
+    if (!situation.trim()) return
     if (!isSubscribed && wisdomCount >= FREE_WISDOM_LIMIT) {
-      window.open(STRIPE_PAYMENT_LINK, '_blank')
+      alert('You have used all your free wisdom for now. Please subscribe to continue.')
       return
     }
 
     setLoading(true)
+    setWisdom('')
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/relish/get-wisdom`, {
+      const response = await fetch(`${BACKEND_URL}/relish`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerId: customerId || 'anonymous',
-          situation: situation,
-          context: context,
+          situation,
+          context,
+          customerId,
         }),
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-
-        if (response.status === 403) {
-          window.open(STRIPE_PAYMENT_LINK, '_blank')
-          return
-        }
-
-        throw new Error(errorData.error || 'Failed to get wisdom')
+        throw new Error('Failed to fetch from backend')
       }
 
       const data = await response.json()
       setWisdom(data.wisdom)
+      setAskedSituation(situation) // CAPTURE THE MIRROR
       setWisdomCount((prev) => prev + 1)
-      setSituation('')
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'Failed to process request'
-      alert(msg)
+      setSituation('') // CLEAR THE INPUT
+    } catch (err) {
+      console.error(err)
+      setWisdom("The chef is having a bit of trouble... please try again.")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleGetWisdom()
     }
   }
 
@@ -123,99 +104,74 @@ function App() {
   // ============================================================================
 
   return (
-    <div className="relish-container">
-
-      {/* ===== HEADER - sauc-e.com branding ===== */}
-      <header className="sauce-header">
-        <a href={SAUCE_HOME} target="_blank" rel="noopener noreferrer" className="sauce-logo-link">
-          <span className="sauce-name">sauc-e</span>
-          <span className="sauce-tagline"> where HOME is the </span>
-          <span className="sauce-heart">❤️</span>
-        </a>
-        <nav className="sauce-nav">
-          <a href={CHECKOUT_URL} target="_blank" rel="noopener noreferrer" className="sauce-nav-link">Check It Out Y'all</a>
-          <a href={`${SAUCE_HOME}/about`} target="_blank" rel="noopener noreferrer" className="sauce-nav-link">About</a>
-          <a href={`${SAUCE_HOME}/contact`} target="_blank" rel="noopener noreferrer" className="sauce-nav-link">Contact</a>
-        </nav>
+    <div className="relish-app-container">
+      {/* ===== HEADER ===== */}
+      <header className="relish-header">
+        <div className="relish-logo-container">
+          <img src="/logo.png" alt="Relish Logo" className="relish-logo" />
+        </div>
+        <h1 className="relish-title">RELISH</h1>
+        <p className="relish-subtitle">For your feelings... what's the sitch?</p>
       </header>
 
-      {/* ===== RELISH LOGO + TITLE ===== */}
-      <div className="relish-header">
-        <img src="/icon.png" alt="RELISH" className="relish-logo-image" />
-        <h1 className="relish-title">RELISH</h1>
-        <p className="relish-subtitle">Wisdom &amp; Clarity</p>
-        <p className="relish-philosophy">Understanding = Quality / Quantity</p>
-      </div>
+      {/* ===== MAIN CONTENT ===== */}
+      <main className="relish-main">
+        <div className="relish-input-card">
+          <label className="relish-label">SELECT CONTEXT:</label>
+          <div className="relish-context-buttons">
+            {CONTEXTS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setContext(c)}
+                className={`relish-context-btn ${context === c ? 'active' : ''}`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
 
-      {/* ===== PREMIUM COUNTER ===== */}
-      {!isSubscribed && (
-        <div className="premium-section">
-          <a
-            href={STRIPE_PAYMENT_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`premium-pill${freeLeft === 0 ? ' urgent' : ''}`}
-          >
-            {freeLeft > 0
-              ? `Premium · ${freeLeft} free left`
-              : 'Upgrade to Premium · $9.99/mo'}
-          </a>
-        </div>
-      )}
+          <label className="relish-label">TELL ME EVERYTHING:</label>
+          <textarea
+            className="relish-textarea"
+            placeholder="Type your situation here..."
+            value={situation}
+            onChange={(e) => setSituation(e.target.value)}
+            onKeyDown={handleKeyPress}
+          />
 
-      {/* ===== APP FUNCTIONALITY ===== */}
-      <main className="relish-content">
-        <h2 className="relish-section-title">Pick a Context</h2>
-
-        {CONTEXTS.map((c) => (
           <button
-            key={c}
-            className={`relish-context-btn${context === c ? ' active' : ''}`}
-            onClick={() => setContext(c)}
+            className="relish-submit-btn"
+            onClick={handleGetWisdom}
+            disabled={loading}
           >
-            {c}
+            {loading ? 'GETTING SAUCY...' : 'GET WISDOM'}
           </button>
-        ))}
 
-        <h2 className="relish-section-title">Your Situation</h2>
-        <textarea
-          className="relish-input"
-          placeholder="Describe what's on your mind..."
-          value={situation}
-          onChange={(e) => setSituation(e.target.value)}
-          rows={4}
-        />
+          {!isSubscribed && (
+            <p className="relish-counter">
+              Free wisdom remaining: <strong>{freeLeft}</strong>
+            </p>
+          )}
+        </div>
 
-        <button
-          className={`relish-wisdom-btn${loading ? ' disabled' : ''}`}
-          onClick={handleGetWisdom}
-          disabled={loading}
-        >
-          {loading ? 'Seeking wisdom...' : 'Get Wisdom'}
-        </button>
-
+        {/* ===== THE MIRROR WISDOM BOX ===== */}
         {wisdom && (
-          <div className="relish-wisdom-box">
-            <h3 className="relish-wisdom-title">Wisdom</h3>
-            <p className="relish-wisdom-text">{wisdom}</p>
+          <div className="relish-wisdom-box animate-pop-in">
+            <p className="relish-you-asked">YOU ASKED:</p>
+            <p className="relish-asked-question">"{askedSituation}"</p>
+            <hr className="relish-divider" />
+            <div className="relish-wisdom-content">
+              <p className="relish-wisdom-text">{wisdom}</p>
+            </div>
+            <p className="relish-footer-note">Too much ego? Too salty! :p Stay Curious.</p>
           </div>
         )}
       </main>
 
-      {/* ===== US vs THEM ===== */}
-      <div className="marketing-section">
-        <img src="/relish_uvt.png" alt="RELISH Us vs Them" className="uvt-image" />
-      </div>
-
-      {/* ===== PEAK FLAVOUR ===== */}
-      <div className="marketing-section">
-        <img src="/relish_peak_pacakage.png" alt="Peak Flavour Premium 3,6,9" className="peak-image" />
-      </div>
-
-      {/* ===== SUBSCRIBE CTA ===== */}
-      {!isSubscribed && (
-        <div className="cta-section">
-          <h2 className="cta-title">Peak Flavour Premium</h2>
+      {/* ===== UPSELL (only if not subscribed and limit reached) ===== */}
+      {!isSubscribed && wisdomCount >= FREE_WISDOM_LIMIT && (
+        <div className="relish-upsell-card">
+          <h2 className="cta-title">Hungry for more?</h2>
           <p className="cta-subtitle">Unlimited wisdom. $9.99/month.</p>
           <p className="cta-hotdog">$9.99 &lt; 3 hot dogs + tax</p>
           <a
@@ -246,7 +202,6 @@ function App() {
         <p className="footer-small">CATSUP (Learning) · BBQE (Safety)</p>
         <p className="footer-tiny">© 2026 3_6_NIFE.pi · 36Nife@gmail.com</p>
       </footer>
-
     </div>
   )
 }
