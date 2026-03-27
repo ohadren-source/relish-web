@@ -2,31 +2,26 @@ import { useState, useEffect } from 'react'
 import './App.css'
 
 // ============================================================================
-// BACKEND URL (Only this - no API keys in app!)
+// BACKEND URL
 // ============================================================================
-
 const BACKEND_URL = 'https://sauc-e-backend-production.up.railway.app'
-
 const FREE_WISDOM_LIMIT = 9
 
-// Payment & external links
+// External links
 const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/28E00l3HOg638gA6hxa3u00'
 const SAUCE_HOME = 'https://sauc-e.com'
-const CHECKOUT_URL = 'https://sauc-e.com/checkitout'
 
 type Context = 'Life' | 'Career' | 'Relationships' | 'Health' | 'Money'
-
 const CONTEXTS: Context[] = ['Life', 'Career', 'Relationships', 'Health', 'Money']
 
 function App() {
   // ============================================================================
   // STATE
   // ============================================================================
-
   const [isSubscribed] = useState(false)
   const [wisdomCount, setWisdomCount] = useState(0)
   const [situation, setSituation] = useState('')
-  const [askedSituation, setAskedSituation] = useState('') // THE MIRROR STATE
+  const [askedSituation, setAskedSituation] = useState('') // THE MIRROR
   const [context, setContext] = useState<Context>('Life')
   const [wisdom, setWisdom] = useState('')
   const [loading, setLoading] = useState(false)
@@ -37,9 +32,7 @@ function App() {
   // ============================================================================
   // INITIALIZATION
   // ============================================================================
-
   useEffect(() => {
-    // Basic hit count logic
     const saved = localStorage.getItem('sauc_e_relish_hits')
     if (saved) {
       setWisdomCount(parseInt(saved, 10))
@@ -53,7 +46,6 @@ function App() {
   // ============================================================================
   // ACTIONS
   // ============================================================================
-
   const handleGetWisdom = async () => {
     if (!situation.trim()) return
     if (!isSubscribed && wisdomCount >= FREE_WISDOM_LIMIT) {
@@ -75,9 +67,7 @@ function App() {
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch from backend')
-      }
+      if (!response.ok) throw new Error('Failed to fetch')
 
       const data = await response.json()
       setWisdom(data.wisdom)
@@ -102,10 +92,8 @@ function App() {
   // ============================================================================
   // RENDER
   // ============================================================================
-
   return (
     <div className="relish-app-container">
-      {/* ===== HEADER ===== */}
       <header className="relish-header">
         <div className="relish-logo-container">
           <img src="/logo.png" alt="Relish Logo" className="relish-logo" />
@@ -114,7 +102,6 @@ function App() {
         <p className="relish-subtitle">For your feelings... what's the sitch?</p>
       </header>
 
-      {/* ===== MAIN CONTENT ===== */}
       <main className="relish-main">
         <div className="relish-input-card">
           <label className="relish-label">SELECT CONTEXT:</label>
@@ -154,7 +141,7 @@ function App() {
           )}
         </div>
 
-        {/* ===== THE MIRROR WISDOM BOX ===== */}
+        {/* THE MIRROR BOX */}
         {wisdom && (
           <div className="relish-wisdom-box animate-pop-in">
             <p className="relish-you-asked">YOU ASKED:</p>
@@ -168,24 +155,6 @@ function App() {
         )}
       </main>
 
-      {/* ===== UPSELL (only if not subscribed and limit reached) ===== */}
-      {!isSubscribed && wisdomCount >= FREE_WISDOM_LIMIT && (
-        <div className="relish-upsell-card">
-          <h2 className="cta-title">Hungry for more?</h2>
-          <p className="cta-subtitle">Unlimited wisdom. $9.99/month.</p>
-          <p className="cta-hotdog">$9.99 &lt; 3 hot dogs + tax</p>
-          <a
-            href={STRIPE_PAYMENT_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="cta-button"
-          >
-            Subscribe at sauc-e.com
-          </a>
-        </div>
-      )}
-
-      {/* ===== LEGAL ===== */}
       <div className="legal-section">
         <a href={`${SAUCE_HOME}/terms`} target="_blank" rel="noopener noreferrer" className="legal-link">Terms of Service</a>
         <span className="legal-separator">  ·  </span>
@@ -194,7 +163,6 @@ function App() {
         <a href={`${SAUCE_HOME}/support`} target="_blank" rel="noopener noreferrer" className="legal-link">Support</a>
       </div>
 
-      {/* ===== FOOTER ===== */}
       <footer className="relish-footer">
         <a href={SAUCE_HOME} target="_blank" rel="noopener noreferrer" className="footer-brand">sauc-e.com</a>
         <p className="footer-tagline">HOME of all of our delicious APPS</p>
