@@ -7,6 +7,19 @@ import './App.css'
 
 const BACKEND_URL = 'https://sauc-e-backend-production.up.railway.app'
 
+// ============================================================================
+// PERSISTENT USER ID
+// ============================================================================
+
+function getPersistentUserId(): string {
+  let userId = localStorage.getItem('relish_user_id')
+  if (!userId) {
+    userId = 'user_' + Math.random().toString(36).substr(2, 9)
+    localStorage.setItem('relish_user_id', userId)
+  }
+  return userId
+}
+
 const FREE_WISDOM_LIMIT = 9
 
 // Payment & external links
@@ -30,7 +43,7 @@ function App() {
   const [context, setContext] = useState<Context>('Life')
   const [wisdom, setWisdom] = useState('')
   const [loading, setLoading] = useState(false)
-  const [customerId] = useState<string | null>(null)
+  const [customerId] = useState<string>(() => getPersistentUserId())
 
   const freeLeft = Math.max(0, FREE_WISDOM_LIMIT - wisdomCount)
 
@@ -39,8 +52,8 @@ function App() {
   // ============================================================================
 
   useEffect(() => {
-    syncUsageCount('web-user')
-  }, [])
+    syncUsageCount(customerId)
+  }, [customerId])
 
   async function syncUsageCount(cid: string) {
     try {
@@ -56,6 +69,22 @@ function App() {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'unknown'
       console.log('Usage sync skipped:', msg)
+    }
+  }
+
+  async function persistCounterToBackend(count: number) {
+    try {
+      await fetch(`${BACKEND_URL}/api/relish/update-usage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: customerId || 'anonymous',
+          usageCount: count
+        })
+      })
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'unknown'
+      console.log('Failed to persist counter:', msg)
     }
   }
 
@@ -106,6 +135,7 @@ function App() {
       const data = await response.json()
       setWisdom(data.wisdom)
       setWisdomCount((prev) => prev + 1)
+      persistCounterToBackend(wisdomCount + 1)
       setSituation('')
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to process request'
